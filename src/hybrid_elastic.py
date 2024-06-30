@@ -51,6 +51,62 @@ def warm_up_index(pipeline):
 # Warm-up the pipeline
 warm_up_index(qa_pipeline)
 
+# Function to ask question and get answers
+def ask_question(question, qa_pipeline):
+    qa_results = qa_pipeline.run(
+        query=question,
+        params={"Retriever": {"top_k": 10}, "Reader": {"top_k": 5}},
+    )
+
+    # Extract answers and their context
+    answers = qa_results['answers']
+
+    # Display the answers with their context
+    for i, answer in enumerate(answers):
+        print(f"Answer {i+1}: {answer.answer}")
+        print(f"Context: {answer.context}")
+        print(f"Score: {answer.score}")
+        print("\n" + "-"*50 + "\n")
+
+    return answers
+
+# Function to choose an answer
+def choose_answer(answers):
+    chosen_index = int(input("Choose the answer number you prefer (1, 2, 3, etc.): ")) - 1
+    return answers[chosen_index]
+
+# Function to find the chosen answer in the original text
+def find_answer_in_text(answer, pdf_text):
+    # Get the answer text and the surrounding context
+    answer_text = answer.answer
+    context_text = answer.context
+    
+    # Find the position of the context text in the original pdf_text
+    context_start_idx = pdf_text.find(context_text)
+    if context_start_idx == -1:
+        print("Context not found in the original text.")
+        return
+    
+    # Find the line containing the answer
+    start_idx = pdf_text.find(answer_text, context_start_idx)
+    end_idx = start_idx + len(answer_text)
+
+    # Split the text into lines
+    lines = pdf_text.split('\n')
+
+    # Find the line number of the answer
+    start_line_num = pdf_text.count('\n', 0, start_idx)
+    end_line_num = pdf_text.count('\n', 0, end_idx)
+
+    # Determine the range of lines to print
+    start_print_line = max(start_line_num - 5, 0)
+    end_print_line = min(end_line_num + 5, len(lines))
+
+    # Print the relevant lines
+    print(f"Answer line and context:")
+    for line_num in range(start_print_line, end_print_line):
+        print(lines[line_num])
+
 # Interactive Question Processing
 reader = FARMReader(model_name_or_path="../data/reader")
 
@@ -59,16 +115,11 @@ while True:
     if question.lower() == 'exit':
         break
     
-    # Step 1: Retrieve relevant documents using Elasticsearch
-    search_results = search_pipeline.run(query=question)
-    retrieved_docs = search_results['documents']
-
-    # Step 2: Use QA pipeline on the retrieved documents
-    qa_results = qa_pipeline.run(
-        query=question,
-        params={"Retriever": {"top_k": 10}, "Reader": {"top_k": 5}},
-    )
+    # Ask the question and get answers
+    answers = ask_question(question, qa_pipeline)
     
-    print(f"Question: {question}")
-    print_answers(qa_results, details="minimum")
-    print("\n" + "-"*50 + "\n")
+    # Allow the user to choose an answer
+    chosen_answer = choose_answer(answers)
+    
+    # Find the chosen answer in the original text
+    find_answer_in_text(chosen_answer, pdf_text)
